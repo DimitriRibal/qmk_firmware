@@ -1,22 +1,7 @@
-/*
-Copyright 2019 @foostan
-Copyright 2020 Drashna Jaelre <@drashna>
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 2 of the License, or
-(at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with this program.  If not, see <http://www.gnu.org/licenses/>.
-*/
 
 #include QMK_KEYBOARD_H
+void rgb_matrix_layer_helper(uint8_t hue, uint8_t sat, uint8_t val, uint8_t mode, uint8_t speed, uint8_t led_type);
+
 
 #include <stdio.h>
 bool is_alt_tab_active = false;
@@ -83,7 +68,7 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
   //,-----------------------------------------------------.                    ,-----------------------------------------------------.
         KC_ESC, KC_EXLM,   KC_AT, KC_HASH,  KC_DLR, KC_PERC,                      KC_CIRC, KC_AMPR, KC_ASTR, KC_LPRN, KC_RPRN, KC_BSPC,\
   //|--------+--------+--------+--------+--------+--------|                    |--------+--------+--------+--------+--------+--------|
-      KC_LSFT, XXXXXXX, XXXXXXX, XXXXXXX, BACKLIT,  ADJUST,                      KC_BSLS, KC_NUHS, KC_LCBR, KC_RCBR,   KC_UP, KC_QUOT,\
+      KC_LSFT, XXXXXXX, XXXXXXX, XXXXXXX, BACKLIT,  MO(3),                      KC_BSLS, KC_NUHS, KC_LCBR, KC_RCBR,   KC_UP, KC_QUOT,\
   //|--------+--------+--------+--------+--------+--------|                    |--------+--------+--------+--------+--------+--------|
       KC_LCTL, XXXXXXX, XXXXXXX, XXXXXXX, KC_SLSH,  KC_EQL,                      KC_UNDS, KC_PLUS, KC_LBRC, KC_LEFT, KC_DOWN, KC_RGHT,\
   //|--------+--------+--------+--------+--------+--------+--------|  |--------+--------+--------+--------+--------+--------+--------|
@@ -606,4 +591,96 @@ void oled_task_user(void) {
 
   }
 }
+
+
+/// RGB ///
+
+#ifdef RGB_MATRIX_ENABLE
+
+void suspend_power_down_keymap(void) {
+    rgb_matrix_set_suspend_state(true);
+}
+
+void suspend_wakeup_init_keymap(void) {
+    rgb_matrix_set_suspend_state(false);
+}
+
+void rgb_matrix_indicators_user(void) {
+    if (rgb_matrix_config.enable 
+#    ifdef RGB_DISABLE_WHEN_USB_SUSPENDED
+        && !g_suspend_state
+#    endif
+    ) {
+        switch (biton32(layer_state)) {
+           
+            case _LOWER:
+                rgb_matrix_layer_helper(HSV_MAGENTA, 0, rgb_matrix_config.speed, LED_FLAG_UNDERGLOW);
+                break;
+            
+            case _RAISE:
+                rgb_matrix_layer_helper(HSV_GREEN, 0, rgb_matrix_config.speed, LED_FLAG_UNDERGLOW);
+                break;
+            default:
+                rgb_matrix_layer_helper(HSV_BLUE, 0, rgb_matrix_config.speed, LED_FLAG_UNDERGLOW);
+                break;
+            }
+    }
+}
+#endif
+
+#ifdef RGB_MATRIX_ENABLE
+#    include "lib/lib8tion/lib8tion.h"
+extern led_config_t g_led_config;
+void rgb_matrix_layer_helper(uint8_t hue, uint8_t sat, uint8_t val, uint8_t mode, uint8_t speed, uint8_t led_type) {
+    HSV hsv = {hue, sat, val};
+    if (hsv.v > rgb_matrix_config.hsv.v) {
+        hsv.v = rgb_matrix_config.hsv.v;
+    }
+
+    switch (mode) {
+        case 1:  // breathing
+        {
+            uint16_t time = scale16by8(g_rgb_counters.tick, speed / 8);
+            hsv.v         = scale8(abs8(sin8(time) - 128) * 2, hsv.v);
+            RGB rgb       = hsv_to_rgb(hsv);
+            for (uint8_t i = 0; i < DRIVER_LED_TOTAL; i++) {
+                if (HAS_FLAGS(g_led_config.flags[i], led_type)) {
+                    rgb_matrix_set_color(i, rgb.r, rgb.g, rgb.b);
+                }
+            }
+            break;
+        }
+        default:  // Solid Color
+        {
+            RGB rgb = hsv_to_rgb(hsv);
+            for (uint8_t i = 0; i < DRIVER_LED_TOTAL; i++) {
+                if (HAS_FLAGS(g_led_config.flags[i], led_type)) {
+                    rgb_matrix_set_color(i, rgb.r, rgb.g, rgb.b);
+                }
+            }
+            break;
+        }
+    }
+}
+#endif
+
+int RGB_current_mode;
+
+void persistent_default_layer_set(uint16_t default_layer) {
+  eeconfig_update_default_layer(default_layer);
+  default_layer_set(default_layer);
+}
+
+// Setting ADJUST layer RGB back to default
+void update_tri_layer_RGB(uint8_t layer1, uint8_t layer2, uint8_t layer3) {
+  if (IS_LAYER_ON(layer1) && IS_LAYER_ON(layer2)) {
+    layer_on(layer3);
+  } else {
+    layer_off(layer3);
+  }
+}
+
+
+
+
 #endif
