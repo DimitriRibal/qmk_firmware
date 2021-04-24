@@ -163,7 +163,7 @@ static void render_status(void) {
 
 // WPM-responsive animation stuff here
 #define IDLE_FRAMES 5
-#define IDLE_SPEED 30 // below this wpm value your animation will idle
+#define IDLE_SPEED 45 // below this wpm value your animation will idle
 
 #define PREP_FRAMES 2
 
